@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Chooser</title>
+<meta name="theme-color" content="#0B0B12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chooser">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B0B12;
+    --surface: #17151F;
+    --ink: #EDEBF4;
+    --ink-dim: #8A8798;
+    --gold: #FFC857;
+    --ring-track: #262432;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding-top: max(env(safe-area-inset-top), 20px);
+    padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  header {
+    text-align: center;
+    padding: 4px 20px 10px;
+    flex-shrink: 0;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  h1 span { color: var(--gold); }
+  #hint {
+    margin: 6px 0 0;
+    font-size: 14px;
+    color: var(--ink-dim);
+    min-height: 18px;
+    transition: opacity .2s ease;
+  }
+  #touch-area {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+  }
+  .touch-dot {
+    position: absolute;
+    width: 84px;
+    height: 84px;
+    margin-left: -42px;
+    margin-top: -42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .touch-dot .fill {
+    position: absolute;
+    inset: 14px;
+    border-radius: 50%;
+    opacity: 0.9;
+  }
+  .touch-dot svg {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+  }
+  .touch-dot .track {
+    fill: none;
+    stroke: var(--ring-track);
+    stroke-width: 5;
+  }
+  .touch-dot .progress {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.05s linear;
+  }
+  .touch-dot.winner {
+    z-index: 5;
+  }
+  .touch-dot.winner .fill {
+    background: var(--gold) !important;
+    box-shadow: 0 0 40px 12px rgba(255,200,87,0.55);
+  }
+  .touch-dot.loser {
+    opacity: 0;
+    transform: scale(0.3);
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  .touch-dot.winner-pop {
+    animation: winnerPop 0.5s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes winnerPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.55); }
+    100% { transform: scale(1.3); }
+  }
+  .spark {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gold);
+    pointer-events: none;
+    animation: sparkOut 0.7s ease-out forwards;
+  }
+  @keyframes sparkOut {
+    0% { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+  }
+  #winner-label {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+    text-align: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--gold);
+    text-shadow: 0 2px 20px rgba(255,200,87,0.4);
+    transition: opacity .3s ease, transform .3s ease;
+  }
+  #winner-label.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) translateY(-90px);
+  }
+  #center-msg {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 15px;
+    line-height: 1.5;
+    max-width: 240px;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  #center-msg .big {
+    display: block;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 48px;
+    color: var(--ink);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  footer {
+    text-align: center;
+    padding: 10px 20px 4px;
+    flex-shrink: 0;
+  }
+  #reset-hint {
+    font-size: 12px;
+    color: var(--ink-dim);
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  #reset-hint.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <header>
+    <h1>Choo<span>ser</span></h1>
+    <div id="hint">Finger auf den Screen legen und halten</div>
+  </header>
+
+  <div id="touch-area">
+    <div id="center-msg">
+      <span class="big" id="count-msg">👆</span>
+      <span id="sub-msg">Mindestens 2 Finger gleichzeitig auflegen</span>
+    </div>
+    <div id="winner-label">Gewonnen!</div>
+  </div>
+
+  <footer>
+    <div id="reset-hint">Alle Finger loslassen für eine neue Runde</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const touchArea = document.getElementById('touch-area');
+  const hint = document.getElementById('hint');
+  const centerMsg = document.getElementById('center-msg');
+  const countMsg = document.getElementById('count-msg');
+  const subMsg = document.getElementById('sub-msg');
+  const winnerLabel = document.getElementById('winner-label');
+  const resetHint = document.getElementById('reset-hint');
+
+  const COLORS = ['#FF6B6B', '#4ECDC4', '#A78BFA', '#F472B6', '#60A5FA', '#34D399', '#FB923C', '#F87171'];
+  const HOLD_MS = 1600; // Zeit zum Halten bis Auswahl
+  const RADIUS = 34; // svg circle radius (matches viewbox below)
+  const CIRC = 2 * Math.PI * RADIUS;
+
+  let activeTouches = new Map(); // id -> { el, color, progressEl, x, y }
+  let colorPool = [];
+  let countdownStart = null;
+  let rafId = null;
+  let state = 'idle'; // idle | counting | decided
+  let winnerId = null;
+
+  function resetColorPool(){
+    colorPool = COLORS.slice();
+  }
+  resetColorPool();
+
+  function nextColor(){
+    if (colorPool.length === 0) resetColorPool();
+    const idx = Math.floor(Math.random() * colorPool.length);
+    return colorPool.splice(idx, 1)[0];
+  }
+
+  function vibrate(pattern){
+    if (navigator.vibrate) {
+      try { navigator.vibrate(pattern); } catch(e){}
+    }
+  }
+
+  function updateHint(){
+    const n = activeTouches.size;
+    if (state === 'decided') return;
+    if (n === 0) {
+      hint.textContent = 'Finger auf den Screen legen und halten';
+      centerMsg.style.opacity = '1';
+      countMsg.textContent = '👆';
+      subMsg.textContent = 'Mindestens 2 Finger gleichzeitig auflegen';
+    } else if (n === 1) {
+      hint.textContent = 'Noch mehr Finger dazu...';
+      centerMsg.style.opacity = '1';
+      countMsg.textContent = '1';
+      subMsg.textContent = 'noch 1 Finger reicht schon';
+    } else {
+      hint.textContent = n + ' Finger — halten...';
+      centerMsg.style.opacity = '0';
+    }
+  }
+
+  function makeDotElement(color){
+    const el = document.createElement('div');
+    el.className = 'touch-dot';
+    el.innerHTML = `
+      <svg viewBox="0 0 84 84">
+        <circle class="track" cx="42" cy="42" r="${RADIUS}"></circle>
+        <circle class="progress" cx="42" cy="42" r="${RADIUS}" stroke="${color}"
+          stroke-dasharray="${CIRC}" stroke-dashoffset="${CIRC}"></circle>
+      </svg>
+      <div class="fill" style="background:${color}"></div>
+    `;
+    touchArea.appendChild(el);
+    return el;
+  }
+
+  function positionDot(t){
+    const rect = touchArea.getBoundingClientRect();
+    t.x = t.clientX - rect.left;
+    t.y = t.clientY - rect.top;
+    t.el.style.transform = `translate(${t.x}px, ${t.y}px)`;
+  }
+
+  function handleStart(e){
+    if (state === 'decided') return; // ignore new touches mid-result
+    for (const touch of e.changedTouches) {
+      if (activeTouches.has(touch.identifier)) continue;
+      const color = nextColor();
+      const el = makeDotElement(color);
+      const t = { el, color, clientX: touch.clientX, clientY: touch.clientY };
+      activeTouches.set(touch.identifier, t);
+      positionDot(t);
+    }
+    evaluateState();
+  }
+
+  function handleMove(e){
+    for (const touch of e.changedTouches) {
+      const t = activeTouches.get(touch.identifier);
+      if (!t) continue;
+      t.clientX = touch.clientX;
+      t.clientY = touch.clientY;
+      positionDot(t);
+    }
+  }
+
+  function handleEnd(e){
+    for (const touch of e.changedTouches) {
+      const t = activeTouches.get(touch.identifier);
+      if (!t) continue;
+      if (state === 'decided') {
+        // fade out immediately during result phase
+        t.el.classList.add('loser');
+        setTimeout(()=> t.el.remove(), 400);
+      } else {
+        t.el.remove();
+      }
+      activeTouches.delete(touch.identifier);
+    }
+    evaluateState();
+  }
+
+  function evaluateState(){
+    const n = activeTouches.size;
+
+    if (state === 'decided') {
+      if (n === 0) {
+        finishRound();
+      }
+      return;
+    }
+
+    if (n >= 2) {
+      if (state !== 'counting') {
+        state = 'counting';
+        countdownStart = performance.now();
+        cancelAnimationFrame(rafId);
+        tick();
+      }
+    } else {
+      if (state === 'counting') {
+        state = 'idle';
+        countdownStart = null;
+        cancelAnimationFrame(rafId);
+        resetProgressRings();
+      }
+      updateHint();
+    }
+  }
+
+  function resetProgressRings(){
+    activeTouches.forEach(t => {
+      const p = t.el.querySelector('.progress');
+      if (p) p.style.strokeDashoffset = CIRC;
+    });
+  }
+
+  function tick(){
+    if (state !== 'counting') return;
+    const elapsed = performance.now() - countdownStart;
+    const frac = Math.min(elapsed / HOLD_MS, 1);
+
+    activeTouches.forEach(t => {
+      const p = t.el.querySelector('.progress');
+      if (p) p.style.strokeDashoffset = CIRC * (1 - frac);
+    });
+
+    hint.textContent = activeTouches.size + ' Finger — halten...';
+
+    if (frac >= 1) {
+      decideWinner();
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function decideWinner(){
+    state = 'decided';
+    cancelAnimationFrame(rafId);
+    const ids = Array.from(activeTouches.keys());
+    winnerId = ids[Math.floor(Math.random() * ids.length)];
+
+    vibrate([30, 40, 30, 40, 120]);
+
+    activeTouches.forEach((t, id) => {
+      if (id === winnerId) {
+        t.el.classList.add('winner', 'winner-pop');
+        spawnSparks(t.x, t.y);
+      } else {
+        t.el.classList.add('loser');
+      }
+    });
+
+    hint.textContent = 'Ausgewählt!';
+    winnerLabel.classList.add('show');
+    const winnerT = activeTouches.get(winnerId);
+    if (winnerT) {
+      winnerLabel.style.left = winnerT.x + 'px';
+      winnerLabel.style.top = winnerT.y + 'px';
+    }
+    resetHint.classList.add('show');
+  }
+
+  function spawnSparks(x, y){
+    const n = 14;
+    for (let i = 0; i < n; i++){
+      const s = document.createElement('div');
+      s.className = 'spark';
+      const angle = (i / n) * Math.PI * 2;
+      const dist = 70 + Math.random() * 40;
+      s.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      s.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      s.style.left = x + 'px';
+      s.style.top = y + 'px';
+      touchArea.appendChild(s);
+      setTimeout(()=> s.remove(), 750);
+    }
+  }
+
+  function finishRound(){
+    state = 'idle';
+    winnerId = null;
+    winnerLabel.classList.remove('show');
+    resetHint.classList.remove('show');
+    resetColorPool();
+    updateHint();
+  }
+
+  touchArea.addEventListener('touchstart', handleStart, { passive: true });
+  touchArea.addEventListener('touchmove', handleMove, { passive: true });
+  touchArea.addEventListener('touchend', handleEnd, { passive: true });
+  touchArea.addEventListener('touchcancel', handleEnd, { passive: true });
+
+  updateHint();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
+})();
+</script>
+</body>
+</html>
